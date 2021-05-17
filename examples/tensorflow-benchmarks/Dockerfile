@@ -5,4 +5,6 @@ WORKDIR "/tensorflow"
 RUN git clone https://github.com/tensorflow/benchmarks
 WORKDIR "/tensorflow/benchmarks"
 
-CMD ["/bin/bash"]
+COPY entrypoint.sh /entrypoint.sh
+ENTRYPOINT ["/entrypoint.sh"]
+CMD ["/usr/sbin/sshd", "-De"]

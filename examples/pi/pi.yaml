@@ -1,0 +1,38 @@
+apiVersion: kubeflow.org/v1
+kind: MPIJob
+metadata:
+  name: pi
+spec:
+  slotsPerWorker: 3
+  cleanPodPolicy: Running
+  mpiReplicaSpecs:
+    Launcher:
+      replicas: 1
+      template:
+         spec:
+           securityContext:
+             runAsUser: 1000
+           restartPolicy: OnFailure
+           containers:
+           - image: gcr.io/acondor-gke-dev/mpi-pi
+             name: pi
+             args:
+             - mpirun
+             - -np
+             - "9"
+             - pi
+    Worker:
+      replicas: 3
+      template:
+        spec:
+          securityContext:
+            runAsUser: 1000
+          restartPolicy: OnFailure
+          containers:
+          - image: gcr.io/acondor-gke-dev/mpi-pi
+            name: pi
+            args:
+            - /usr/sbin/sshd
+            - -De
+            - -f
+            - /home/mpiuser/.sshd_config

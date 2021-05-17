@@ -9,6 +9,7 @@ require (
 	github.com/kubernetes-sigs/kube-batch v0.5.0
 	github.com/prometheus/client_golang v1.5.1
 	github.com/stretchr/testify v1.4.0
+	golang.org/x/crypto v0.0.0-20190611184440-5c40567a22f8
 	golang.org/x/net v0.0.0-20200226121028-0de0cce0169b // indirect
 	k8s.io/api v0.16.15
 	k8s.io/apimachinery v0.16.15
