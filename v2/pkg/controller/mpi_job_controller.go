@@ -23,9 +23,11 @@ import (
 	"crypto/x509"
 	"encoding/pem"
 	"fmt"
+	"path"
 	"reflect"
 	"sort"
 	"strconv"
+	"text/template"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -74,7 +76,7 @@ const (
 	sshAuthSecretSuffix     = "-ssh"
 	sshAuthVolume           = "ssh-auth"
 	sshAuthMountPath        = "/mnt/ssh"
-	sshHomeInitMountPath    = "/mnt/home-ssh"
+	sshHomeInitMountPath    = "/mnt/home"
 	sshHomeVolume           = "ssh-home"
 	launcher                = "launcher"
 	worker                  = "worker"
@@ -205,7 +207,26 @@ var (
 		{Name: "NVIDIA_VISIBLE_DEVICES"},
 		{Name: "NVIDIA_DRIVER_CAPABILITIES"},
 	}
+
+	initSSHDirTemplate = func() *template.Template {
+		tmpl := template.New("init-ssh-dir")
+		var err error
+		tmpl, err = tmpl.Parse("" +
+			"mkdir /mnt/home/{{.User}} && " +
+			"cp -RL /mnt/ssh /mnt/home/{{.User}}/.ssh && " +
+			"chmod 700 /mnt/home/{{.User}}/.ssh && " +
+			"chmod 600 /mnt/home/{{.User}}/.ssh/*")
+		if err != nil {
+			panic(err)
+		}
+		return tmpl
+	}()
 )
+
+type sshDirTemplateArgs struct {
+	User string
+	UID  int64
+}
 
 // MPIJobController is the controller implementation for MPIJob resources.
 type MPIJobController struct {
@@ -1533,27 +1554,30 @@ func (c *MPIJobController) setupSSHOnPod(podSpec *corev1.PodSpec, job *kubeflow.
 			},
 		})
 
+	home, user := path.Split(job.Spec.SSHAuthMountPath)
+
 	mainContainer := &podSpec.Containers[0]
 	mainContainer.VolumeMounts = append(mainContainer.VolumeMounts,
 		corev1.VolumeMount{
 			Name:      sshHomeVolume,
-			MountPath: job.Spec.SSHAuthMountPath,
+			MountPath: home,
 		})
 
 	// The init script sets the permissions of the ssh folder in the user's home
 	// directory. The ownership is set based on the security context of the
 	// launcher's first container.
 	launcherSecurityCtx := job.Spec.MPIReplicaSpecs[kubeflow.MPIReplicaTypeLauncher].Template.Spec.Containers[0].SecurityContext
-	initScript := "" +
-		"cp -RL /mnt/ssh/* /mnt/home-ssh && " +
-		"chmod 700 /mnt/home-ssh && " +
-		"chmod 600 /mnt/home-ssh/*"
-	if launcherSecurityCtx != nil && launcherSecurityCtx.RunAsUser != nil {
-		initScript += fmt.Sprintf(" && chown %d -R /mnt/home-ssh", *launcherSecurityCtx.RunAsUser)
-	}
+	var buffer bytes.Buffer
+	_ = initSSHDirTemplate.Execute(&buffer, sshDirTemplateArgs{
+		User: user,
+		UID:  *launcherSecurityCtx.RunAsUser,
+	})
 	podSpec.InitContainers = append(podSpec.InitContainers, corev1.Container{
 		Name:  "init-ssh",
 		Image: c.scriptingImage,
+		SecurityContext: &corev1.SecurityContext{
+			RunAsUser: launcherSecurityCtx.RunAsUser,
+		},
 		VolumeMounts: []corev1.VolumeMount{
 			{
 				Name:      sshAuthVolume,
@@ -1565,7 +1589,7 @@ func (c *MPIJobController) setupSSHOnPod(podSpec *corev1.PodSpec, job *kubeflow.
 			},
 		},
 		Command: []string{"/bin/sh"},
-		Args:    []string{"-c", initScript},
+		Args:    []string{"-c", buffer.String()},
 	})
 }
 

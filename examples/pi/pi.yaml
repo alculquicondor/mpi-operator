@@ -5,14 +5,16 @@ metadata:
 spec:
   slotsPerWorker: 1
   runPolicy:
-    cleanPodPolicy: Running
-    ttlSecondsAfterFinished: 60
-  sshAuthMountPath: /home/mpiuser/.ssh
+    # cleanPodPolicy: Running
+    # ttlSecondsAfterFinished: 60
+  sshAuthMountPath: /home/mpiuser
   mpiReplicaSpecs:
     Launcher:
       replicas: 1
       template:
         spec:
+          securityContext:
+            fsGroup: 1000
           containers:
           - image: kubeflow/mpi-pi
             name: mpi-launcher
@@ -23,7 +25,7 @@ spec:
             args:
             - -n
             - "2"
-            - /home/mpiuser/pi
+            - /opt/mpi/pi
             resources:
               limits:
                 cpu: 1
@@ -32,6 +34,8 @@ spec:
       replicas: 2
       template:
         spec:
+          securityContext:
+            fsGroup: 1000
           containers:
           - image: kubeflow/mpi-pi
             name: mpi-worker
@@ -45,7 +49,7 @@ spec:
             args:
             - -De
             - -f
-            - /home/mpiuser/.sshd_config
+            - /opt/ssh/sshd_config
             resources:
               limits:
                 cpu: 1
