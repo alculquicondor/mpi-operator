@@ -20,7 +20,9 @@ const (
 	// EnvKubeflowNamespace is ENV for kubeflow namespace specified by user.
 	EnvKubeflowNamespace = "KUBEFLOW_NAMESPACE"
 	// DefaultRestartPolicy is default RestartPolicy for ReplicaSpec.
+	// Launcher will fail on start if workers DNS names are not ready so we set OnFailure restart policy
 	DefaultRestartPolicy = common.RestartPolicyNever
+	DefaultLauncherRestartPolicy = common.RestartPolicyOnFailure
 	// OperatorName is the name of the operator used as value to the label common.OperatorLabelName
 	OperatorName = "mpi-operator"
 )
